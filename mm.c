@@ -35,13 +35,13 @@ team_t team = {
     ""
 };
 
-/* single word (4) or double word (8) alignment */
-#define ALIGNMENT 8
+// /* single word (4) or double word (8) alignment */
+// #define ALIGNMENT 8
 
-/* rounds up to the nearest multiple of ALIGNMENT */
-#define ALIGN(size) (((size) + (ALIGNMENT-1)) & ~0x7)
+// /* rounds up to the nearest multiple of ALIGNMENT */
+// #define ALIGN(size) (((size) + (ALIGNMENT-1)) & ~0x7)
 
-#define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
+// #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
 
 /* 
@@ -144,7 +144,6 @@ static void *extend_heap(size_t words) {
 }
 
 
-
 void mm_free(void *bp) {
     // 반환할 블록의 헤더에서 블록 사이즈 가져오기
     size_t size = GET_SIZE(HDRP(bp));
@@ -190,10 +189,28 @@ static void *coalesce(void *bp) {
     return bp;
 }
 
-/* 
- * mm_malloc - Allocate a block by incrementing the brk pointer.
- *     Always allocate a block whose size is a multiple of the alignment.
- */
+
+char *find_fit(size_t size) {
+    char *bp = heap_listp;
+    // 적합한 블록을 찾을 때까지 앞으로 전진
+    // - GET_ALLOC(~) == 0 && GET_SIZE(~) >= size 인 블록
+    while (GET_ALLOC(HDRP(bp)) || GET_SIZE(HDRP(bp)) < size) {
+        // 현재 블록이 에필로그(0/1)인 경우, 탐색 종료
+        if (GET_SIZE(HDRP(bp)) == 0) {
+            return NULL;
+        }
+        // 앞에 남은 불록이 있는 경우, 다음 블록으로 전진
+        bp = NEXT_BLKP(bp);    
+    }
+    return bp;
+}
+
+
+void place(char *bp, size_t size) {
+
+} 
+
+
 void *mm_malloc(size_t size) {
     size_t adj_size;  // alignment를 위해 조정된 블록 사이즈
     size_t ext_size;  // HEAP에 fit한 블록이 없을 때 HEAP을 확장할 사이즈
@@ -229,6 +246,11 @@ void *mm_malloc(size_t size) {
 }
 
 
+
+// /* 
+//  * mm_malloc - Allocate a block by incrementing the brk pointer.
+//  *     Always allocate a block whose size is a multiple of the alignment.
+//  */
 // void *mm_malloc(size_t size)
 // {
 //     int newsize = ALIGN(size + SIZE_T_SIZE);
@@ -242,25 +264,25 @@ void *mm_malloc(size_t size) {
 // }
 
 
-/*
- * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
- */
-void *mm_realloc(void *ptr, size_t size)
-{
-    void *oldptr = ptr;
-    void *newptr;
-    size_t copySize;
+// /*
+//  * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
+//  */
+// void *mm_realloc(void *ptr, size_t size)
+// {
+//     void *oldptr = ptr;
+//     void *newptr;
+//     size_t copySize;
     
-    newptr = mm_malloc(size);
-    if (newptr == NULL)
-      return NULL;
-    copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
-    if (size < copySize)
-      copySize = size;
-    memcpy(newptr, oldptr, copySize);
-    mm_free(oldptr);
-    return newptr;
-}
+//     newptr = mm_malloc(size);
+//     if (newptr == NULL)
+//       return NULL;
+//     copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
+//     if (size < copySize)
+//       copySize = size;
+//     memcpy(newptr, oldptr, copySize);
+//     mm_free(oldptr);
+//     return newptr;
+// }
 
 
 
