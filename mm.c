@@ -91,6 +91,10 @@ team_t team = {
 // - (주의!) 정의하는 위치는 어디가 적당할까? mm_init?
 static char *heap_listp; 
 
+// 추가 함수 형상 정의
+static void *extend_heap(size_t words);
+static void *coalesce(void *bp);
+
 /* 
  * mm_init - initialize the malloc package.
  */
@@ -140,7 +144,8 @@ static void *extend_heap(size_t words) {
     PUT(FTRP(bp), PACK(size, 0));
     PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); // 새로운 에필로그의 헤더
     // 이전 블록이 free 상태였다면 이전 블록과 결합
-    return coalesce(bp);
+    bp = coalesce(bp);
+    return bp;
 }
 
 
