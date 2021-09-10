@@ -191,6 +191,9 @@ static void *coalesce(void *bp) {
 
 
 char *find_fit(size_t size) {
+    // 탐색 시작점 초기 설정
+    // - 프롤로그의 푸터로 시작점을 잡는 first fit
+    // - TODO: 마지막 탐색 지점을 시작점으로 잡는 방식도 시도해보기
     char *bp = heap_listp;
     // 적합한 블록을 찾을 때까지 앞으로 전진
     // - GET_ALLOC(~) == 0 && GET_SIZE(~) >= size 인 블록
@@ -207,11 +210,24 @@ char *find_fit(size_t size) {
 
 
 void place(char *bp, size_t size) {
-
+    // 기존 블록 크기에서 남는 영역 크기 미리 계산
+    size_t rest_size = GET_SIZE(HDRP(bp)) - size;
+    // 요청된 사이즈에 맞게 배치하기
+    PUT(HDRP(bp), PACK(size, 1));
+    PUT(FTRP(bp), PACK(size, 1));
+    // 블록에 내용물을 담는 작업
+    // ~~
+    // 남은 영역이 있으면 분할하기
+    // - 현재 방식에서는 extend_heap 할 때 큰 덩어리를 하나의 블록으로 두기 때문에, 매번 분할해주어야 함
+    // - TODO: 만약 미리 블록 크기를 분할해둔다면, 남은 영역 분할도 선택적으로 해볼 수 있음
+    if (rest_size > 2 * DSIZE) {
+        PUT(HDRP(NEXT_BLKP(bp)), PACK(rest_size, 0));
+        PUT(FTRP(NEXT_BLKP(bp)), PACK(rest_size, 0));
+    }
 } 
 
 
-void *mm_malloc(size_t size) {
+void *mm_malloc(size_t size) { // 바이트 단위
     size_t adj_size;  // alignment를 위해 조정된 블록 사이즈
     size_t ext_size;  // HEAP에 fit한 블록이 없을 때 HEAP을 확장할 사이즈
     char *bp;
