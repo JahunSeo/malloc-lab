@@ -60,7 +60,7 @@
 /* 
  * Maximum heap size in bytes 
  */
-#define MAX_HEAP (20*(1<<20))  /* 20 MB */
+#define MAX_HEAP (20*(1<<20))  /* 20 MB: 단위가 바이트이므로, (1<<10 == 2^10 -> 1KB), (1<<20 == 2^20 -> 1MB) */
 
 /*****************************************************************************
  * Set exactly one of these USE_xxx constants to "1" to select a timing method
