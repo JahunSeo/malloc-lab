@@ -35,13 +35,13 @@ team_t team = {
     ""
 };
 
-// /* single word (4) or double word (8) alignment */
-// #define ALIGNMENT 8
+/* single word (4) or double word (8) alignment */
+#define ALIGNMENT 8
 
-// /* rounds up to the nearest multiple of ALIGNMENT */
-// #define ALIGN(size) (((size) + (ALIGNMENT-1)) & ~0x7)
+/* rounds up to the nearest multiple of ALIGNMENT */
+#define ALIGN(size) (((size) + (ALIGNMENT-1)) & ~0x7)
 
-// #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
+#define SIZE_T_SIZE (ALIGN(sizeof(size_t))) // ALIGN(8)
 
 
 /* 
@@ -51,7 +51,7 @@ team_t team = {
 #define DSIZE 8  // double word size (단위 bytes)
 #define CHUNKSIZE (1<<12)  // 힙을 1회 확장할 때의 기본 크기 (단위 bytes)
 
-#define MAX(x, y) ((x) < (y)? (x) : (y))
+#define MAX(x, y) ((x) > (y)? (x) : (y))
 
 // 헤더와 풋터를 저장할 정보를 워드 1개 크기로 묶기(pack)
 // - 크기 8의 블록 free:       0b1000 | 0 == 0b1000 == 8 --> 8/0
@@ -125,6 +125,7 @@ int mm_init(void)
  * extend_heap: 필요한 워드의 개수를 입력 받아 HEAP을 확장
  */
 static void *extend_heap(size_t words) {
+    // printf("[extend_heap] %u\n", words * WSIZE);
     // 블록 주소값 초기화, 확장할 워드의 개수 초기화
     char *bp;
     size_t size; 
@@ -150,6 +151,7 @@ static void *extend_heap(size_t words) {
 
 
 void mm_free(void *bp) {
+    // printf("\n[free]\n");
     // 반환할 블록의 헤더에서 블록 사이즈 가져오기
     size_t size = GET_SIZE(HDRP(bp));
     // 반환할 블록의 헤더와 풋터를 업데이트: size/0
@@ -208,31 +210,48 @@ char *find_fit(size_t size) {
             return NULL;
         }
         // 앞에 남은 불록이 있는 경우, 다음 블록으로 전진
-        bp = NEXT_BLKP(bp);    
+        bp = NEXT_BLKP(bp);
     }
+    // printf("[find_fit] found %u\n", size);
     return bp;
 }
 
 
 void place(char *bp, size_t size) {
-    // 기존 블록 크기에서 남는 영역 크기 미리 계산
-    size_t rest_size = GET_SIZE(HDRP(bp)) - size;
-    // 요청된 사이즈에 맞게 배치하기
-    PUT(HDRP(bp), PACK(size, 1));
-    PUT(FTRP(bp), PACK(size, 1));
-    // 블록에 내용물을 담는 작업
-    // ~~
-    // 남은 영역이 있으면 분할하기
-    // - 현재 방식에서는 extend_heap 할 때 큰 덩어리를 하나의 블록으로 두기 때문에, 매번 분할해주어야 함
-    // - TODO: 만약 미리 블록 크기를 분할해둔다면, 남은 영역 분할도 선택적으로 해볼 수 있음
-    if (rest_size > 2 * DSIZE) {
-        PUT(HDRP(NEXT_BLKP(bp)), PACK(rest_size, 0));
-        PUT(FTRP(NEXT_BLKP(bp)), PACK(rest_size, 0));
+    // 기존 블록 크기 계산
+    size_t orig_size = GET_SIZE(HDRP(bp));
+    // printf("[place] before: %u %u\n", orig_size, size);
+    // 남는 영역이 분할하기 어려울 경우
+    if (orig_size - size < 2 * DSIZE) {
+        // printf("  - case 1: %u\n", orig_size);
+        // 기존에 남은 사이즈에 맞게 배치하기
+        PUT(HDRP(bp), PACK(orig_size, 1));
+        PUT(FTRP(bp), PACK(orig_size, 1));
     }
+    // 남는 영역이 분할 가능할 경우 
+    else {
+        // printf("  - case 2: %u %u\n", size, orig_size - size);
+        // 요청된 사이즈에 맞게 배치하기
+        PUT(HDRP(bp), PACK(size, 1));
+        PUT(FTRP(bp), PACK(size, 1));
+        // 남은 영역 분할하기
+        // - 현재 방식에서는 extend_heap 할 때 큰 덩어리를 하나의 블록으로 두기 때문에, 매번 분할해주어야 함
+        // - TODO: 만약 미리 블록 크기를 분할해둔다면, 남은 영역 분할도 선택적으로 해볼 수 있음
+        bp = NEXT_BLKP(bp);
+        size = orig_size - size;
+        PUT(HDRP(bp), PACK(size, 0));
+        PUT(FTRP(bp), PACK(size, 0));
+    }
+
+    orig_size = GET_SIZE(HDRP(NEXT_BLKP(bp)));
+    // printf("[place] after: %u\n", orig_size);
+
 } 
 
 
 void *mm_malloc(size_t size) { // 바이트 단위
+    // printf("\n[malloc] %u\n", size);
+
     size_t adj_size;  // alignment를 위해 조정된 블록 사이즈
     size_t ext_size;  // HEAP에 fit한 블록이 없을 때 HEAP을 확장할 사이즈
     char *bp;
@@ -252,6 +271,7 @@ void *mm_malloc(size_t size) { // 바이트 단위
     }
     // HEAP에서 가용한 블록 탐색
     if ((bp = find_fit(adj_size)) != NULL) {
+        // printf(" - use existing block!\n");
         place(bp, adj_size);
         return bp;
     }
@@ -262,6 +282,7 @@ void *mm_malloc(size_t size) { // 바이트 단위
     if ((bp = extend_heap(ext_size/WSIZE)) == NULL) {
         return NULL;
     } 
+    // printf(" - heap is extended! %u %u\n", adj_size, ext_size);
     place(bp, adj_size);
     return bp;
 }
@@ -277,7 +298,7 @@ void *mm_malloc(size_t size) { // 바이트 단위
 //     int newsize = ALIGN(size + SIZE_T_SIZE);
 //     void *p = mem_sbrk(newsize);
 //     if (p == (void *)-1)
-// 	return NULL;
+// 	       return NULL;
 //     else {
 //         *(size_t *)p = size;
 //         return (void *)((char *)p + SIZE_T_SIZE);
@@ -285,25 +306,25 @@ void *mm_malloc(size_t size) { // 바이트 단위
 // }
 
 
-// /*
-//  * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
-//  */
-// void *mm_realloc(void *ptr, size_t size)
-// {
-//     void *oldptr = ptr;
-//     void *newptr;
-//     size_t copySize;
+/*
+ * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
+ */
+void *mm_realloc(void *ptr, size_t size)
+{
+    void *oldptr = ptr;
+    void *newptr;
+    size_t copySize;
     
-//     newptr = mm_malloc(size);
-//     if (newptr == NULL)
-//       return NULL;
-//     copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
-//     if (size < copySize)
-//       copySize = size;
-//     memcpy(newptr, oldptr, copySize);
-//     mm_free(oldptr);
-//     return newptr;
-// }
+    newptr = mm_malloc(size);
+    if (newptr == NULL)
+      return NULL;
+    copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
+    if (size < copySize)
+      copySize = size;
+    memcpy(newptr, oldptr, copySize);
+    mm_free(oldptr);
+    return newptr;
+}
 
 
 
