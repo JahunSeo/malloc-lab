@@ -176,7 +176,7 @@ void mm_free(void *bp) {
     size_t size = GET_SIZE(HDRP(bp));
     // 반환할 블록의 헤더와 풋터를 업데이트: size/0
     PUT(HDRP(bp), PACK(size, 0));
-    PUT(HDRP(bp), PACK(size, 0));
+    PUT(FTRP(bp), PACK(size, 0));
     // 인접한 블록과 결합
     // TODO: free할 때마다 인접한 블록을 결합하는 것이 과연 효율적일까?
     coalesce(bp);
