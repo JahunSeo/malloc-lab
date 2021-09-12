@@ -103,6 +103,7 @@ static void *coalesce(void *bp);
 int mm_init(void)
 {
     heap_size = 0;
+    printf("***************************\n");
     printf("[mm_init] %u\n", heap_size);
     // 비어 있는 가용 리스트(HEAP) 생성: 길이 4개 워드
     if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1) {
@@ -200,6 +201,7 @@ static void *coalesce(void *bp) {
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
         bp = PREV_BLKP(bp);
     }
+    printf("[coalesce] result: %u\n", GET_SIZE(HDRP(bp)));
     return bp;
 }
 
