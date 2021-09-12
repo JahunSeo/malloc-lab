@@ -123,9 +123,20 @@ int mm_init(void)
     if (extend_heap(CHUNKSIZE/WSIZE) == NULL) {
         return -1;
     }
-    // 
+    // 미리 공간을 분할해두기
+    // - 1차로 일단 1/2을 만들어보자
+    char *bp = heap_listp;
+    size_t size;
+
+
 
     return 0;
+}
+
+static void *divide_block(void* bp) {
+    // block이 free이고 분리 가능한 크기인지 확인
+    
+    // 본래 가용공간(a) + 8 이므로, 새로운 가용공간은 (a-8)//2 이며, 새로운 사이즈는 a//2 + 4
 }
 
 /*
