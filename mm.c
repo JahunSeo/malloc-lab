@@ -47,6 +47,7 @@ team_t team = {
 /* 
  * Basic constants and macros
  */
+
 #define WSIZE 4  // word, header, footer의 크기 (단위 bytes)
 #define DSIZE 8  // double word size (단위 bytes)
 #define CHUNKSIZE (1<<12)  // 힙을 1회 확장할 때의 기본 크기 (단위 bytes)
@@ -88,8 +89,9 @@ team_t team = {
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE)))
 
 // heap에서 포인터의 위치를 정적 변수로 정의
-// - (주의!) 정의하는 위치는 어디가 적당할까? mm_init?
 static char *heap_listp; 
+// heap의 크기 기록: 크기가 증가할 때마다 업데이트
+static size_t heap_size = 0; 
 
 // 추가 함수 형상 정의
 static void *extend_heap(size_t words);
@@ -100,6 +102,8 @@ static void *coalesce(void *bp);
  */
 int mm_init(void)
 {
+    heap_size = 0;
+    printf("[mm_init] %u\n", heap_size);
     // 비어 있는 가용 리스트(HEAP) 생성: 길이 4개 워드
     if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1) {
         return -1;
@@ -112,6 +116,7 @@ int mm_init(void)
     PUT(heap_listp + (3*WSIZE), PACK(0, 1)); // 에필로그 헤더에 0/1 삽입
     heap_listp += (2*WSIZE); // heap 주소값을 프롤로그 푸터 위치로 이동
 
+    heap_size = 4;
     // 비어 있는 HEAP을 CHUNKSIZE(단위 bytes)만큼 확장
     // - 이 때, extend_heap은 입력값으로 필요한 워드의 개수를 받음
     if (extend_heap(CHUNKSIZE/WSIZE) == NULL) {
@@ -146,12 +151,14 @@ static void *extend_heap(size_t words) {
     PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); // 새로운 에필로그의 헤더
     // 이전 블록이 free 상태였다면 이전 블록과 결합
     bp = coalesce(bp);
+    // heap 크기 업데이트
+    heap_size += size;
     return bp;
 }
 
 
 void mm_free(void *bp) {
-    printf("\n[free]\n");
+    printf("\n[free] %u\n", GET_SIZE(HDRP(bp)));
     // 반환할 블록의 헤더에서 블록 사이즈 가져오기
     size_t size = GET_SIZE(HDRP(bp));
     // 반환할 블록의 헤더와 풋터를 업데이트: size/0
@@ -199,21 +206,29 @@ static void *coalesce(void *bp) {
 
 char *find_fit(size_t size) {
     // 탐색 시작점 초기 설정
-    // - 프롤로그의 푸터로 시작점을 잡는 first fit
-    // - TODO: 마지막 탐색 지점을 시작점으로 잡는 방식도 시도해보기
-    char *bp = heap_listp;
-    // 적합한 블록을 찾을 때까지 앞으로 전진
+    // BestFit: 모든 가용 블록을 검사하며 크기가 맞는 가장 작은 블록을 선택
+    char *bp = heap_listp; // 프롤로그의 포인트
+    char *best_bp = NULL;
     // - GET_ALLOC(~) == 0 && GET_SIZE(~) >= size 인 블록
-    while (GET_ALLOC(HDRP(bp)) || GET_SIZE(HDRP(bp)) < size) {
-        // 현재 블록이 에필로그(0/1)인 경우, 탐색 종료
-        if (GET_SIZE(HDRP(bp)) == 0) {
-            return NULL;
-        }
-        // 앞에 남은 불록이 있는 경우, 다음 블록으로 전진
+    while (GET_SIZE(HDRP(bp)) != 0) {
         bp = NEXT_BLKP(bp);
+        // 현재 블록이 할당된 경우
+        if (GET_ALLOC(HDRP(bp))) continue;
+        // 현재 블록의 사이즈가 찾는 크기보다 작은 경우
+        if (GET_SIZE(HDRP(bp)) < size) continue;
+        // 현재 블록의 사이즈가 지금까지의 최적 보다 작은 경우
+        if (best_bp == NULL || GET_SIZE(HDRP(bp)) < GET_SIZE(HDRP(best_bp))) {
+            best_bp = bp;
+        } 
     }
-    printf("[find_fit] found %u\n", size);
-    return bp;
+    
+    if (best_bp == NULL) {
+        printf("[find_fit] fail to find best fit for %u\n", size);
+    } else {
+        printf("[find_fit] found %u for %u: %p\n", GET_SIZE(HDRP(best_bp)), size, best_bp);
+    }
+
+    return best_bp;
 }
 
 
@@ -250,7 +265,7 @@ void place(char *bp, size_t size) {
 
 
 void *mm_malloc(size_t size) { // 바이트 단위
-    printf("\n[malloc] %u\n", size);
+    printf("\n[malloc] %u // %u\n", size, heap_size);
 
     size_t adj_size;  // alignment를 위해 조정된 블록 사이즈
     size_t ext_size;  // HEAP에 fit한 블록이 없을 때 HEAP을 확장할 사이즈
