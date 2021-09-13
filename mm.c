@@ -103,8 +103,8 @@ static void *coalesce(void *bp);
 int mm_init(void)
 {
     heap_size = 0;
-    printf("***************************\n");
-    printf("[mm_init] %u\n", heap_size);
+    // printf("***************************\n");
+    // printf("[mm_init] %u\n", heap_size);
     // 비어 있는 가용 리스트(HEAP) 생성: 길이 4개 워드
     if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1) {
         return -1;
@@ -143,7 +143,7 @@ static void *divide_block(void* bp) {
  * extend_heap: 필요한 워드의 개수를 입력 받아 HEAP을 확장
  */
 static void *extend_heap(size_t words) {
-    printf("[extend_heap] %u\n", words * WSIZE);
+    // printf("[extend_heap] %u\n", words * WSIZE);
     // 블록 주소값 초기화, 확장할 워드의 개수 초기화
     char *bp;
     size_t size; 
@@ -171,7 +171,7 @@ static void *extend_heap(size_t words) {
 
 
 void mm_free(void *bp) {
-    printf("\n[free] %u\n", GET_SIZE(HDRP(bp)));
+    // printf("\n[free] %u\n", GET_SIZE(HDRP(bp)));
     // 반환할 블록의 헤더에서 블록 사이즈 가져오기
     size_t size = GET_SIZE(HDRP(bp));
     // 반환할 블록의 헤더와 풋터를 업데이트: size/0
@@ -213,7 +213,7 @@ static void *coalesce(void *bp) {
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
         bp = PREV_BLKP(bp);
     }
-    printf("[coalesce] result: %u\n", GET_SIZE(HDRP(bp)));
+    // printf("[coalesce] result: %u\n", GET_SIZE(HDRP(bp)));
     return bp;
 }
 
@@ -237,9 +237,9 @@ char *find_fit(size_t size) {
     }
     
     if (best_bp == NULL) {
-        printf("[find_fit] fail to find best fit for %u\n", size);
+        // printf("[find_fit] fail to find best fit for %u\n", size);
     } else {
-        printf("[find_fit] found %u for %u: %p\n", GET_SIZE(HDRP(best_bp)), size, best_bp);
+        // printf("[find_fit] found %u for %u: %p\n", GET_SIZE(HDRP(best_bp)), size, best_bp);
     }
 
     return best_bp;
@@ -249,17 +249,17 @@ char *find_fit(size_t size) {
 void place(char *bp, size_t size) {
     // 기존 블록 크기 계산
     size_t orig_size = GET_SIZE(HDRP(bp));
-    printf("[place] before: %u %u\n", orig_size, size);
+    // printf("[place] before: %u %u\n", orig_size, size);
     // 남는 영역이 분할하기 어려울 경우
     if (orig_size - size < 2 * DSIZE) {
-        printf("  - case 1: %u\n", orig_size);
+        // printf("  - case 1: %u\n", orig_size);
         // 기존에 남은 사이즈에 맞게 배치하기
         PUT(HDRP(bp), PACK(orig_size, 1));
         PUT(FTRP(bp), PACK(orig_size, 1));
     }
     // 남는 영역이 분할 가능할 경우 
     else {
-        printf("  - case 2: %u %u\n", size, orig_size - size);
+        // printf("  - case 2: %u %u\n", size, orig_size - size);
         // 요청된 사이즈에 맞게 배치하기
         PUT(HDRP(bp), PACK(size, 1));
         PUT(FTRP(bp), PACK(size, 1));
@@ -273,13 +273,13 @@ void place(char *bp, size_t size) {
     }
 
     orig_size = GET_SIZE(HDRP(bp));
-    printf("[place] after: %u\n", orig_size);
+    // printf("[place] after: %u\n", orig_size);
 
 } 
 
 
 void *mm_malloc(size_t size) { // 바이트 단위
-    printf("\n[malloc] %u // %u\n", size, heap_size);
+    // printf("\n[malloc] %u // %u\n", size, heap_size);
 
     size_t adj_size;  // alignment를 위해 조정된 블록 사이즈
     size_t ext_size;  // HEAP에 fit한 블록이 없을 때 HEAP을 확장할 사이즈
@@ -300,7 +300,7 @@ void *mm_malloc(size_t size) { // 바이트 단위
     }
     // HEAP에서 가용한 블록 탐색
     if ((bp = find_fit(adj_size)) != NULL) {
-        printf(" - use existing block!\n");
+        // printf(" - use existing block!\n");
         place(bp, adj_size);
         return bp;
     }
@@ -311,7 +311,7 @@ void *mm_malloc(size_t size) { // 바이트 단위
     if ((bp = extend_heap(ext_size/WSIZE)) == NULL) {
         return NULL;
     } 
-    printf(" - heap is extended! %u %u\n", adj_size, ext_size);
+    // printf(" - heap is extended! %u %u\n", adj_size, ext_size);
     place(bp, adj_size);
     return bp;
 }
