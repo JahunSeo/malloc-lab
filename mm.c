@@ -226,14 +226,13 @@ char *find_fit(size_t size) {
     // - GET_ALLOC(~) == 0 && GET_SIZE(~) >= size 인 블록
     while (GET_SIZE(HDRP(bp)) != 0) {
         bp = NEXT_BLKP(bp);
-        // 현재 블록이 할당된 경우
-        if (GET_ALLOC(HDRP(bp))) continue;
-        // 현재 블록의 사이즈가 찾는 크기보다 작은 경우
-        if (GET_SIZE(HDRP(bp)) < size) continue;
-        // 현재 블록의 사이즈가 지금까지의 최적 보다 작은 경우
-        if (best_bp == NULL || GET_SIZE(HDRP(bp)) < GET_SIZE(HDRP(best_bp))) {
-            best_bp = bp;
-        } 
+        // 현재 블록이 할당되어 있지 않고, 현재 블록의 사이즈가 찾는 크기 이상인 경우
+        if (!GET_ALLOC(HDRP(bp)) && GET_SIZE(HDRP(bp)) >= size) {
+            // 현재 블록의 사이즈가 지금까지의 최적 크기보다 작은 경우
+            if (best_bp == NULL || GET_SIZE(HDRP(bp)) < GET_SIZE(HDRP(best_bp))) {
+                best_bp = bp;
+            } 
+        }
     }
     
     if (best_bp == NULL) {
