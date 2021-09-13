@@ -117,7 +117,7 @@ int mm_init(void)
     PUT(heap_listp + (3*WSIZE), PACK(0, 1)); // 에필로그 헤더에 0/1 삽입
     heap_listp += (2*WSIZE); // heap 주소값을 프롤로그 푸터 위치로 이동
 
-    heap_size = 4;
+    heap_size = 16;
     // 비어 있는 HEAP을 CHUNKSIZE(단위 bytes)만큼 확장
     // - 이 때, extend_heap은 입력값으로 필요한 워드의 개수를 받음
     if (extend_heap(CHUNKSIZE/WSIZE) == NULL) {
@@ -278,7 +278,7 @@ void place(char *bp, size_t size) {
 
 
 void *mm_malloc(size_t size) { // 바이트 단위
-    // printf("\n[malloc] %u // %u\n", size, heap_size);
+    // printf("\n[malloc] %u // %u, %u\n", size, heap_size, mem_heapsize());
 
     size_t adj_size;  // alignment를 위해 조정된 블록 사이즈
     size_t ext_size;  // HEAP에 fit한 블록이 없을 때 HEAP을 확장할 사이즈
