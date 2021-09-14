@@ -338,6 +338,7 @@ void place(char *bp, size_t size) {
         // 기존에 남은 사이즈에 맞게 배치하기
         PUT(HDRP(bp), PACK(orig_size, 1));
         PUT(FTRP(bp), PACK(orig_size, 1));
+        delete_node(bp);
     }
     // 남는 영역이 분할 가능할 경우 
     else {
@@ -345,6 +346,7 @@ void place(char *bp, size_t size) {
         // 요청된 사이즈에 맞게 배치하기
         PUT(HDRP(bp), PACK(size, 1));
         PUT(FTRP(bp), PACK(size, 1));
+        delete_node(bp);
         // 남은 영역 분할하기
         // - 현재 방식에서는 extend_heap 할 때 큰 덩어리를 하나의 블록으로 두기 때문에, 매번 분할해주어야 함
         // - TODO: 만약 미리 블록 크기를 분할해둔다면, 남은 영역 분할도 선택적으로 해볼 수 있음
@@ -352,9 +354,10 @@ void place(char *bp, size_t size) {
         size = orig_size - size;
         PUT(HDRP(bp), PACK(size, 0));
         PUT(FTRP(bp), PACK(size, 0));
+        insert_node(bp);
     }
 
-    orig_size = GET_SIZE(HDRP(bp));
+    // orig_size = GET_SIZE(HDRP(bp));
     // printf("[place] after: %u\n", orig_size);
 
 } 
