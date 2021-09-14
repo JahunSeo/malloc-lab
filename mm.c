@@ -317,14 +317,13 @@ char *find_fit(size_t size) {
     char *bp = PRED(heap_listp);
     // 사이즈 요건을 충족하는 free 블록 탐색: 블록 사이즈 >= size
     //  - 사이즈가 충족하지 않으면 pred로 이동
-    while (GET_SIZE(bp) < size) {
+    while (bp != heap_listp && GET_SIZE(bp) < size) {
         bp = PRED(bp);
-        // sentinel에 다시 도착하면 탐색이 바로 종료됨
-        if (bp == heap_listp) {
-            return NULL;
-        }
     }
-
+    // 탐색에 실패했는지 확인
+    if (bp == heap_listp) {
+        return NULL;
+    }
     return bp;
 }
 
