@@ -192,7 +192,6 @@ void mm_free(void *bp) {
     PUT(HDRP(bp), PACK(size, 0));
     PUT(FTRP(bp), PACK(size, 0));
     // 인접한 블록과 결합
-    // TODO: free할 때마다 인접한 블록을 결합하는 것이 과연 효율적일까?
     coalesce(bp);
 }
 
@@ -274,65 +273,6 @@ static void delete_node(void *bp) {
 }
 
 
-char *find_fit(size_t size) {
-    // 탐색 시작점 초기 설정
-    // BestFit: 모든 가용 블록을 검사하며 크기가 맞는 가장 작은 블록을 선택
-    char *bp = heap_listp; // 프롤로그의 포인트
-    char *best_bp = NULL;
-    // - GET_ALLOC(~) == 0 && GET_SIZE(~) >= size 인 블록
-    while (GET_SIZE(HDRP(bp)) != 0) {
-        bp = NEXT_BLKP(bp);
-        // 현재 블록이 할당되어 있지 않고, 현재 블록의 사이즈가 찾는 크기 이상인 경우
-        if (!GET_ALLOC(HDRP(bp)) && GET_SIZE(HDRP(bp)) >= size) {
-            // 현재 블록의 사이즈가 지금까지의 최적 크기보다 작은 경우
-            if (best_bp == NULL || GET_SIZE(HDRP(bp)) < GET_SIZE(HDRP(best_bp))) {
-                best_bp = bp;
-            } 
-        }
-    }
-    
-    if (best_bp == NULL) {
-        // printf("[find_fit] fail to find best fit for %u\n", size);
-    } else {
-        // printf("[find_fit] found %u for %u: %p\n", GET_SIZE(HDRP(best_bp)), size, best_bp);
-    }
-
-    return best_bp;
-}
-
-
-void place(char *bp, size_t size) {
-    // 기존 블록 크기 계산
-    size_t orig_size = GET_SIZE(HDRP(bp));
-    // printf("[place] before: %u %u\n", orig_size, size);
-    // 남는 영역이 분할하기 어려울 경우
-    if (orig_size - size < 2 * DSIZE) {
-        // printf("  - case 1: %u\n", orig_size);
-        // 기존에 남은 사이즈에 맞게 배치하기
-        PUT(HDRP(bp), PACK(orig_size, 1));
-        PUT(FTRP(bp), PACK(orig_size, 1));
-    }
-    // 남는 영역이 분할 가능할 경우 
-    else {
-        // printf("  - case 2: %u %u\n", size, orig_size - size);
-        // 요청된 사이즈에 맞게 배치하기
-        PUT(HDRP(bp), PACK(size, 1));
-        PUT(FTRP(bp), PACK(size, 1));
-        // 남은 영역 분할하기
-        // - 현재 방식에서는 extend_heap 할 때 큰 덩어리를 하나의 블록으로 두기 때문에, 매번 분할해주어야 함
-        // - TODO: 만약 미리 블록 크기를 분할해둔다면, 남은 영역 분할도 선택적으로 해볼 수 있음
-        bp = NEXT_BLKP(bp);
-        size = orig_size - size;
-        PUT(HDRP(bp), PACK(size, 0));
-        PUT(FTRP(bp), PACK(size, 0));
-    }
-
-    orig_size = GET_SIZE(HDRP(bp));
-    // printf("[place] after: %u\n", orig_size);
-
-} 
-
-
 void *mm_malloc(size_t size) { // 바이트 단위
     // printf("\n[malloc] %u // %u, %u\n", size, mem_heapsize());
 
@@ -370,6 +310,55 @@ void *mm_malloc(size_t size) { // 바이트 단위
     place(bp, adj_size);
     return bp;
 }
+
+
+char *find_fit(size_t size) {
+    // 탐색 시작점 초기 설정: sentinel의 pred 블록
+    char *bp = PRED(heap_listp);
+    // 사이즈 요건을 충족하는 free 블록 탐색: 블록 사이즈 >= size
+    //  - 사이즈가 충족하지 않으면 pred로 이동
+    while (GET_SIZE(bp) < size) {
+        bp = PRED(bp);
+        // sentinel에 다시 도착하면 탐색이 바로 종료됨
+        if (bp == heap_listp) {
+            return NULL;
+        }
+    }
+
+    return bp;
+}
+
+
+void place(char *bp, size_t size) {
+    // 기존 블록 크기 계산
+    size_t orig_size = GET_SIZE(HDRP(bp));
+    // printf("[place] before: %u %u\n", orig_size, size);
+    // 남는 영역이 분할하기 어려울 경우
+    if (orig_size - size < 2 * DSIZE) {
+        // printf("  - case 1: %u\n", orig_size);
+        // 기존에 남은 사이즈에 맞게 배치하기
+        PUT(HDRP(bp), PACK(orig_size, 1));
+        PUT(FTRP(bp), PACK(orig_size, 1));
+    }
+    // 남는 영역이 분할 가능할 경우 
+    else {
+        // printf("  - case 2: %u %u\n", size, orig_size - size);
+        // 요청된 사이즈에 맞게 배치하기
+        PUT(HDRP(bp), PACK(size, 1));
+        PUT(FTRP(bp), PACK(size, 1));
+        // 남은 영역 분할하기
+        // - 현재 방식에서는 extend_heap 할 때 큰 덩어리를 하나의 블록으로 두기 때문에, 매번 분할해주어야 함
+        // - TODO: 만약 미리 블록 크기를 분할해둔다면, 남은 영역 분할도 선택적으로 해볼 수 있음
+        bp = NEXT_BLKP(bp);
+        size = orig_size - size;
+        PUT(HDRP(bp), PACK(size, 0));
+        PUT(FTRP(bp), PACK(size, 0));
+    }
+
+    orig_size = GET_SIZE(HDRP(bp));
+    // printf("[place] after: %u\n", orig_size);
+
+} 
 
 
 
