@@ -206,27 +206,38 @@ static void *coalesce(void *bp) {
     size_t size = GET_SIZE(HDRP(bp));
     // CASE 1: 이전 블록 할당, 다음 블록 미할당
     if (prev_alloc && next_alloc) {
-        return bp;
+        // 가용 리스트에 새로운 free 블록 추가
+        insert_node(bp);       
     }
     // CASE 2: 이전 블록 할당, 다음 블록 미할당
     else if (prev_alloc && !next_alloc) {
+        // 기존에 가용 리스트에 등록되어 있던 (physically) next 블록을 리스트에서 제거 
+        delete_node(NEXT_BLKP(bp));
+        // next 블록까지 통합한 크기로 새로운 free 블록 생성
         size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
         PUT(HDRP(bp), PACK(size, 0));
         PUT(FTRP(bp), PACK(size, 0)); // 주의! FTRP는 블록의 헤더에 담긴 사이즈를 활용해 계산되므로, 앞 라인에서 업데이트된 헤더를 활용함
+        // 가용 리스트에 새로운 free 블록 추가
+        insert_node(bp);       
     }
     // CASE 3: 이전 블록 미할당, 다음 블록 할당
     else if (!prev_alloc && next_alloc) {
+        delete_node(PREV_BLKP(bp));
         size += GET_SIZE(HDRP(PREV_BLKP(bp)));
         PUT(FTRP(bp), PACK(size, 0));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
         bp = PREV_BLKP(bp); // 주의! 새로운 bp로 업데이트 해주어야 함 (이 때, 현재 블록의 헤더는 아직 그대로 남아 있기 때문에 활용 가능)
+        insert_node(bp);  
     }
     // CASE 4: 이전 블록 미할당, 다음 블록 미할당
     else {
+        delete_node(PREV_BLKP(bp));
+        depete_node(NEXT_BLKP(bp));
         size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp)));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
         bp = PREV_BLKP(bp);
+        insert_node(bp);  
     }
     // printf("[coalesce] result: %u\n", GET_SIZE(HDRP(bp)));
     return bp;
