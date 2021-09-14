@@ -82,22 +82,27 @@ team_t team = {
 #define HDRP(bp) ((char *)(bp) - WSIZE) 
 #define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE)
 
-// 블록의 주소값으로 이전 블록과 다음 블록의 주소값 찾기
+// 블록의 주소값으로 이전 블록과 다음 블록의 주소값 찾기 (physically next and previous)
 // - NEXT_BLKP: 현재 블록의 헤더로 가서 현재 블록의 사이즈를 구한 다음, 현재 블록 주소값에 더해 다음 블록 위치로 이동
 // - PREV_BLKP: 이전 블록의 풋터로 가서 이전 블록의 사이즈를 구한 다음, 현재 블록 주소값에서 빼 이전 블록 위치로 이동
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp) - WSIZE)))
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE)))
 
-// 이중 연결 가용 리스트 관련 (explicit)
-#define PRED_LOC(bp) (HDRP(bp) + WSIZE)
-#define SUCC_LOC(bp) (FTRP(bp) + DSIZE)
 
-// 이중 연결 가용 리스트
+// 이중 연결 가용 리스트 관련 (explicit)
+// 가용 블록에 pred와 succ의 주소값 저장하기
+#define SET_PTR(p, ptr) (*(unsigned int *)(p) = (unsigned int)(ptr))
+
+// 특정 블록 내에서 pred와 succ의 entries 위치
+#define PRED_PTR(bp) (HDRP(bp) + WSIZE)
+#define SUCC_PTR(bp) (FTRP(bp) + DSIZE)
+
+// 이중 연결 리스트에서 특정 블록의 pred와 succ의 주소값
 // - ((char*)ptr + 1)에서 +1의 의미는, sizeof(char) * 1, 즉 1 * 1
 // - ((char**)ptr + 1)에서 +1의 의미는, sizeof(char*) * 1, 즉 4 * 1  (포인터의 크기가 4바이트라면)
 // - 그래서 (*(void**)ptr)는 ptr를 4바이트 크기의 void*에 캐스팅한 뒤 역변환한 것
-#define PRED(bp) (*(void**)PRED_LOC(bp)) // GET(PRED_LOC(bp))
-#define SUCC(bp) (*(void**)SUCC_LOC(bp)) // GET(SUCC_LOC(bp))
+#define PRED(bp) (*(void**)PRED_PTR(bp)) // GET(PRED_PTR(bp))
+#define SUCC(bp) (*(void**)SUCC_PTR(bp)) // GET(SUCC_PTR(bp))
 
 
 /*
@@ -107,6 +112,8 @@ static void *extend_heap(size_t words);
 static void *coalesce(void *bp);
 char *find_fit(size_t size);
 void place(char *bp, size_t size);
+static void delete_node(void* bp);
+
 
 // heap에서 포인터의 위치를 정적 변수로 정의
 static char *heap_listp; 
@@ -127,8 +134,8 @@ int mm_init(void)
     PUT(heap_listp, 0); // Alignment 패딩에 0 삽입: (*(unsigned int *)(heap_listp) = (0))
     PUT(heap_listp + (1*WSIZE), PACK(2*DSIZE, 1)); // 프롤로그 헤더에 16/1 삽입
     // predecessor, successor
-    PUT(heap_listp + (2*WSIZE), 0); // TODO: 
-    PUT(heap_listp + (3*WSIZE), 0); // TODO: 
+    PUT(heap_listp + (2*WSIZE), NULL); 
+    PUT(heap_listp + (3*WSIZE), NULL);  
     //
     PUT(heap_listp + (4*WSIZE), PACK(2*DSIZE, 1)); // 프롤로그 풋터에 16/1 삽입 
     PUT(heap_listp + (5*WSIZE), PACK(0, 1)); // 에필로그 헤더에 0/1 삽입
@@ -139,13 +146,6 @@ int mm_init(void)
     if (extend_heap(CHUNKSIZE/WSIZE) == NULL) {
         return -1;
     }
-    // 미리 공간을 분할해두기
-    // - 1차로 일단 1/2을 만들어보자
-    char *bp = heap_listp;
-    size_t size;
-
-
-
     return 0;
 }
 
@@ -190,7 +190,8 @@ void mm_free(void *bp) {
     coalesce(bp);
 }
 
-// 왜 static 이지??
+
+// 왜 static 이지??: 다른 파일에서 접근하지 못하도록 하기 위함
 static void *coalesce(void *bp) {
     // 이전 블록과 현재 블록의 할당 여부 체크 (자료형 char로 하면 안 되나?)
     size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
@@ -223,6 +224,10 @@ static void *coalesce(void *bp) {
     }
     // printf("[coalesce] result: %u\n", GET_SIZE(HDRP(bp)));
     return bp;
+}
+
+
+static void delete_node(void *bp) {
 }
 
 
