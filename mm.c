@@ -88,36 +88,52 @@ team_t team = {
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp) - WSIZE)))
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE)))
 
-// heap에서 포인터의 위치를 정적 변수로 정의
-static char *heap_listp; 
-// heap의 크기 기록: 크기가 증가할 때마다 업데이트
-static size_t heap_size = 0; 
+// 이중 연결 가용 리스트 관련 (explicit)
+#define PRED_LOC(bp) (HDRP(bp) + WSIZE)
+#define SUCC_LOC(bp) (FTRP(bp) + DSIZE)
 
-// 추가 함수 형상 정의
+// 이중 연결 가용 리스트
+// - ((char*)ptr + 1)에서 +1의 의미는, sizeof(char) * 1, 즉 1 * 1
+// - ((char**)ptr + 1)에서 +1의 의미는, sizeof(char*) * 1, 즉 4 * 1  (포인터의 크기가 4바이트라면)
+// - 그래서 (*(void**)ptr)는 ptr를 4바이트 크기의 void*에 캐스팅한 뒤 역변환한 것
+#define PRED(bp) (*(void**)PRED_LOC(bp)) // GET(PRED_LOC(bp))
+#define SUCC(bp) (*(void**)SUCC_LOC(bp)) // GET(SUCC_LOC(bp))
+
+
+/*
+ * 추가 함수 형상 정의
+ */
 static void *extend_heap(size_t words);
 static void *coalesce(void *bp);
+char *find_fit(size_t size);
+void place(char *bp, size_t size);
+
+// heap에서 포인터의 위치를 정적 변수로 정의
+static char *heap_listp; 
 
 /* 
  * mm_init - initialize the malloc package.
  */
 int mm_init(void)
 {
-    heap_size = 0;
     // printf("***************************\n");
-    // printf("[mm_init] %u\n", heap_size);
+    // printf("[mm_init] %u\n", mem_heapsize());
     // 비어 있는 가용 리스트(HEAP) 생성: 길이 4개 워드
-    if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1) {
+    if ((heap_listp = mem_sbrk(6 * WSIZE)) == (void *)-1) {
         return -1;
     }
     // HEAP에 패딩, 프롤로그, 에필로그 삽입
     // - 이 때, heap_listp의 자료형은 (char *)로 byte 단위  
     PUT(heap_listp, 0); // Alignment 패딩에 0 삽입: (*(unsigned int *)(heap_listp) = (0))
-    PUT(heap_listp + (1*WSIZE), PACK(DSIZE, 1)); // 프롤로그 헤더에 8/1 삽입
-    PUT(heap_listp + (2*WSIZE), PACK(DSIZE, 1)); // 프롤로그 풋터에 8/1 삽입 
-    PUT(heap_listp + (3*WSIZE), PACK(0, 1)); // 에필로그 헤더에 0/1 삽입
+    PUT(heap_listp + (1*WSIZE), PACK(2*DSIZE, 1)); // 프롤로그 헤더에 16/1 삽입
+    // predecessor, successor
+    PUT(heap_listp + (2*WSIZE), 0); // TODO: 
+    PUT(heap_listp + (3*WSIZE), 0); // TODO: 
+    //
+    PUT(heap_listp + (4*WSIZE), PACK(2*DSIZE, 1)); // 프롤로그 풋터에 16/1 삽입 
+    PUT(heap_listp + (5*WSIZE), PACK(0, 1)); // 에필로그 헤더에 0/1 삽입
     heap_listp += (2*WSIZE); // heap 주소값을 프롤로그 푸터 위치로 이동
 
-    heap_size = 16;
     // 비어 있는 HEAP을 CHUNKSIZE(단위 bytes)만큼 확장
     // - 이 때, extend_heap은 입력값으로 필요한 워드의 개수를 받음
     if (extend_heap(CHUNKSIZE/WSIZE) == NULL) {
@@ -131,12 +147,6 @@ int mm_init(void)
 
 
     return 0;
-}
-
-static void *divide_block(void* bp) {
-    // block이 free이고 분리 가능한 크기인지 확인
-    
-    // 본래 가용공간(a) + 8 이므로, 새로운 가용공간은 (a-8)//2 이며, 새로운 사이즈는 a//2 + 4
 }
 
 /*
@@ -164,8 +174,6 @@ static void *extend_heap(size_t words) {
     PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); // 새로운 에필로그의 헤더
     // 이전 블록이 free 상태였다면 이전 블록과 결합
     bp = coalesce(bp);
-    // heap 크기 업데이트
-    heap_size += size;
     return bp;
 }
 
@@ -278,7 +286,7 @@ void place(char *bp, size_t size) {
 
 
 void *mm_malloc(size_t size) { // 바이트 단위
-    // printf("\n[malloc] %u // %u, %u\n", size, heap_size, mem_heapsize());
+    // printf("\n[malloc] %u // %u, %u\n", size, mem_heapsize());
 
     size_t adj_size;  // alignment를 위해 조정된 블록 사이즈
     size_t ext_size;  // HEAP에 fit한 블록이 없을 때 HEAP을 확장할 사이즈
