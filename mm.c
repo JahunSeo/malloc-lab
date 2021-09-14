@@ -112,7 +112,8 @@ static void *extend_heap(size_t words);
 static void *coalesce(void *bp);
 char *find_fit(size_t size);
 void place(char *bp, size_t size);
-static void delete_node(void* bp);
+static void *insert_node(void *bp);
+static void delete_node(void *bp);
 
 
 // heap에서 포인터의 위치를 정적 변수로 정의
@@ -131,15 +132,20 @@ int mm_init(void)
     }
     // HEAP에 패딩, 프롤로그, 에필로그 삽입
     // - 이 때, heap_listp의 자료형은 (char *)로 byte 단위  
-    PUT(heap_listp, 0); // Alignment 패딩에 0 삽입: (*(unsigned int *)(heap_listp) = (0))
-    PUT(heap_listp + (1*WSIZE), PACK(2*DSIZE, 1)); // 프롤로그 헤더에 16/1 삽입
-    // predecessor, successor
-    PUT(heap_listp + (2*WSIZE), NULL); 
-    PUT(heap_listp + (3*WSIZE), NULL);  
-    //
-    PUT(heap_listp + (4*WSIZE), PACK(2*DSIZE, 1)); // 프롤로그 풋터에 16/1 삽입 
-    PUT(heap_listp + (5*WSIZE), PACK(0, 1)); // 에필로그 헤더에 0/1 삽입
-    heap_listp += (2*WSIZE); // heap 주소값을 프롤로그 푸터 위치로 이동
+    // Alignment 패딩에 0 삽입: (*(unsigned int *)(heap_listp) = (0))
+    PUT(heap_listp, 0); 
+    // 프롤로그 헤더에 16/1 삽입
+    PUT(heap_listp + (1*WSIZE), PACK(2*DSIZE, 1)); 
+    // 프롤로그의 predecessor, successor
+    // - 프롤로그를 sentinel로 하는 순환 리스트로 생성
+    PUT(heap_listp + (2*WSIZE), heap_listp); 
+    PUT(heap_listp + (3*WSIZE), heap_listp);  
+    // 프롤로그 풋터에 16/1 삽입 
+    PUT(heap_listp + (4*WSIZE), PACK(2*DSIZE, 1)); 
+    // 에필로그 헤더에 0/1 삽입
+    PUT(heap_listp + (5*WSIZE), PACK(0, 1)); 
+    // heap 주소값을 프롤로그 푸터 위치로 이동
+    heap_listp += (2*WSIZE); 
 
     // 비어 있는 HEAP을 CHUNKSIZE(단위 bytes)만큼 확장
     // - 이 때, extend_heap은 입력값으로 필요한 워드의 개수를 받음
@@ -226,8 +232,27 @@ static void *coalesce(void *bp) {
     return bp;
 }
 
+/*
+ * 가용 리스트에 새로운 free 블록을 추가하는 함수
+ * - 새로운 free 블록을 가용 리스트의 맨 위에 추가 (Last In First Out)
+ */ 
+static void *insert_node(void *bp) {
 
+} 
+
+/* 
+ * 가용 리스트에서 free 블록을 삭제하는 함수
+ * - 입력값은 삭제하려는 블록의 시작 주소값 (이 때 블록은 가용 리스트 내에 있음)
+ */
 static void delete_node(void *bp) {
+    // 삭제하려는 블록이 프롤로그인 경우
+    if (bp == heap_listp) {
+        return;
+    }
+    // 그 외에는 모두 동일하게 처리
+    // - 프롤로그와 하나의 노드가 있었을 때 그 하나의 노드를 삭제하면, 프롤로그의 pred, succ는 모두 자신을 가리키게 됨
+    SET_PTR(SUCC_PTR(PRED(bp)), SUCC(bp));
+    SET_PTR(PRED_PTR(SUCC(bp)), PRED(bp));
 }
 
 
