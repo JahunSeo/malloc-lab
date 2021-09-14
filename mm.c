@@ -95,14 +95,14 @@ team_t team = {
 
 // 특정 블록 내에서 pred와 succ의 entries 위치
 #define PRED_PTR(bp) (HDRP(bp) + WSIZE)
-#define SUCC_PTR(bp) (FTRP(bp) + DSIZE)
+#define SUCC_PTR(bp) (HDRP(bp) + DSIZE)
 
 // 이중 연결 리스트에서 특정 블록의 pred와 succ의 주소값
 // - ((char*)ptr + 1)에서 +1의 의미는, sizeof(char) * 1, 즉 1 * 1
 // - ((char**)ptr + 1)에서 +1의 의미는, sizeof(char*) * 1, 즉 4 * 1  (포인터의 크기가 4바이트라면)
 // - 그래서 (*(void**)ptr)는 ptr를 4바이트 크기의 void*에 캐스팅한 뒤 역변환한 것
-#define PRED(bp) (*(void**)PRED_PTR(bp)) // GET(PRED_PTR(bp))
-#define SUCC(bp) (*(void**)SUCC_PTR(bp)) // GET(SUCC_PTR(bp))
+#define PRED(bp) GET(PRED_PTR(bp)) //  (*(void**)PRED_PTR(bp))
+#define SUCC(bp) GET(SUCC_PTR(bp)) //  (*(void**)SUCC_PTR(bp)) 
 
 
 /*
@@ -124,8 +124,8 @@ static char *heap_listp;
  */
 int mm_init(void)
 {
-    // printf("***************************\n");
-    // printf("[mm_init] %u\n", mem_heapsize());
+    printf("***************************\n");
+    printf("[mm_init] %u\n", mem_heapsize());
     // 비어 있는 가용 리스트(HEAP) 생성: 길이 4개 워드
     if ((heap_listp = mem_sbrk(6 * WSIZE)) == (void *)-1) {
         return -1;
@@ -138,14 +138,15 @@ int mm_init(void)
     PUT(heap_listp + (1*WSIZE), PACK(2*DSIZE, 1)); 
     // 프롤로그의 predecessor, successor
     // - 프롤로그를 sentinel로 하는 순환 리스트로 생성
-    PUT(heap_listp + (2*WSIZE), heap_listp); 
-    PUT(heap_listp + (3*WSIZE), heap_listp);  
+    SET_PTR(heap_listp + (2*WSIZE), heap_listp + (2*WSIZE)); 
+    SET_PTR(heap_listp + (3*WSIZE), heap_listp + (2*WSIZE));  
     // 프롤로그 풋터에 16/1 삽입 
     PUT(heap_listp + (4*WSIZE), PACK(2*DSIZE, 1)); 
     // 에필로그 헤더에 0/1 삽입
     PUT(heap_listp + (5*WSIZE), PACK(0, 1)); 
     // heap 주소값을 프롤로그 푸터 위치로 이동
     heap_listp += (2*WSIZE); 
+    printf("- %p %p %p %p\n", heap_listp,  (unsigned int)heap_listp, SUCC(heap_listp), PRED(heap_listp));
 
     // 비어 있는 HEAP을 CHUNKSIZE(단위 bytes)만큼 확장
     // - 이 때, extend_heap은 입력값으로 필요한 워드의 개수를 받음
@@ -159,7 +160,7 @@ int mm_init(void)
  * extend_heap: 필요한 워드의 개수를 입력 받아 HEAP을 확장
  */
 static void *extend_heap(size_t words) {
-    // printf("[extend_heap] %u\n", words * WSIZE);
+    printf("[extend_heap] %u\n", words * WSIZE);
     // 블록 주소값 초기화, 확장할 워드의 개수 초기화
     char *bp;
     size_t size; 
@@ -179,13 +180,14 @@ static void *extend_heap(size_t words) {
     PUT(FTRP(bp), PACK(size, 0));
     PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); // 새로운 에필로그의 헤더
     // 이전 블록이 free 상태였다면 이전 블록과 결합
+    printf("- %lu // %lu\n", GET_SIZE(HDRP(bp)), mem_heapsize());
     bp = coalesce(bp);
     return bp;
 }
 
 
 void mm_free(void *bp) {
-    // printf("\n[free] %u\n", GET_SIZE(HDRP(bp)));
+    printf("\n[free] %u\n", GET_SIZE(HDRP(bp)));
     // 반환할 블록의 헤더에서 블록 사이즈 가져오기
     size_t size = GET_SIZE(HDRP(bp));
     // 반환할 블록의 헤더와 풋터를 업데이트: size/0
@@ -231,14 +233,14 @@ static void *coalesce(void *bp) {
     // CASE 4: 이전 블록 미할당, 다음 블록 미할당
     else {
         delete_node(PREV_BLKP(bp));
-        depete_node(NEXT_BLKP(bp));
+        delete_node(NEXT_BLKP(bp));
         size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp)));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
         bp = PREV_BLKP(bp);
         insert_node(bp);  
     }
-    // printf("[coalesce] result: %u\n", GET_SIZE(HDRP(bp)));
+    printf("[coalesce] result: %u\n", GET_SIZE(HDRP(bp)));
     return bp;
 }
 
@@ -247,6 +249,7 @@ static void *coalesce(void *bp) {
  * - 새로운 free 블록을 가용 리스트의 맨 위에 추가 (Last In First Out)
  */ 
 static void *insert_node(void *bp) {
+    printf("[insert_node] %d\n", GET_SIZE(HDRP(bp)));
     // 기존에 프롤로그를 가리키던(맨위에 있던) 블록이 새로운 블록을 가리키도록 설정
     // - 만약 프롤로그 외에 아무것도 없었더라도, 동일하게 처리 가능
     SET_PTR(SUCC_PTR(PRED(heap_listp)), bp);
@@ -262,6 +265,7 @@ static void *insert_node(void *bp) {
  * - 입력값은 삭제하려는 블록의 시작 주소값 (이 때 블록은 가용 리스트 내에 있음)
  */
 static void delete_node(void *bp) {
+    printf("[delete_node] %lu\n", GET_SIZE(HDRP(bp)));
     // 삭제하려는 블록이 프롤로그인 경우
     if (bp == heap_listp) {
         return;
@@ -274,7 +278,7 @@ static void delete_node(void *bp) {
 
 
 void *mm_malloc(size_t size) { // 바이트 단위
-    // printf("\n[malloc] %u // %u, %u\n", size, mem_heapsize());
+    printf("\n[malloc] %u // %u\n", size, mem_heapsize());
 
     size_t adj_size;  // alignment를 위해 조정된 블록 사이즈
     size_t ext_size;  // HEAP에 fit한 블록이 없을 때 HEAP을 확장할 사이즈
@@ -313,13 +317,16 @@ void *mm_malloc(size_t size) { // 바이트 단위
 
 
 char *find_fit(size_t size) {
+    printf("[find_fit] %lu\n", size);
     // 탐색 시작점 초기 설정: sentinel의 pred 블록
     char *bp = PRED(heap_listp);
     // 사이즈 요건을 충족하는 free 블록 탐색: 블록 사이즈 >= size
     //  - 사이즈가 충족하지 않으면 pred로 이동
-    while (bp != heap_listp && GET_SIZE(bp) < size) {
+    while (bp != heap_listp && GET_SIZE(HDRP(bp)) < size) {
+        printf(" (%p, %lu) > ", bp, GET_SIZE(HDRP(bp)));
         bp = PRED(bp);
     }
+    printf("- result: %p, %lu\n", bp, GET_SIZE(HDRP(bp)));
     // 탐색에 실패했는지 확인
     if (bp == heap_listp) {
         return NULL;
@@ -331,22 +338,22 @@ char *find_fit(size_t size) {
 void place(char *bp, size_t size) {
     // 기존 블록 크기 계산
     size_t orig_size = GET_SIZE(HDRP(bp));
-    // printf("[place] before: %u %u\n", orig_size, size);
+    printf("[place] before: %u %u\n", orig_size, size);
     // 남는 영역이 분할하기 어려울 경우
     if (orig_size - size < 2 * DSIZE) {
-        // printf("  - case 1: %u\n", orig_size);
+        printf("  - case 1: %u\n", orig_size);
         // 기존에 남은 사이즈에 맞게 배치하기
+        delete_node(bp);
         PUT(HDRP(bp), PACK(orig_size, 1));
         PUT(FTRP(bp), PACK(orig_size, 1));
-        delete_node(bp);
     }
     // 남는 영역이 분할 가능할 경우 
     else {
-        // printf("  - case 2: %u %u\n", size, orig_size - size);
+        printf("  - case 2: %u %u\n", size, orig_size - size);
         // 요청된 사이즈에 맞게 배치하기
+        delete_node(bp);
         PUT(HDRP(bp), PACK(size, 1));
         PUT(FTRP(bp), PACK(size, 1));
-        delete_node(bp);
         // 남은 영역 분할하기
         // - 현재 방식에서는 extend_heap 할 때 큰 덩어리를 하나의 블록으로 두기 때문에, 매번 분할해주어야 함
         // - TODO: 만약 미리 블록 크기를 분할해둔다면, 남은 영역 분할도 선택적으로 해볼 수 있음
@@ -357,8 +364,8 @@ void place(char *bp, size_t size) {
         insert_node(bp);
     }
 
-    // orig_size = GET_SIZE(HDRP(bp));
-    // printf("[place] after: %u\n", orig_size);
+    orig_size = GET_SIZE(HDRP(bp));
+    printf("[place] after: %u\n", orig_size);
 
 } 
 
