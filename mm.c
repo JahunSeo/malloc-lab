@@ -237,7 +237,14 @@ static void *coalesce(void *bp) {
  * - 새로운 free 블록을 가용 리스트의 맨 위에 추가 (Last In First Out)
  */ 
 static void *insert_node(void *bp) {
-
+    // 기존에 프롤로그를 가리키던(맨위에 있던) 블록이 새로운 블록을 가리키도록 설정
+    // - 만약 프롤로그 외에 아무것도 없었더라도, 동일하게 처리 가능
+    SET_PTR(SUCC_PTR(PRED(heap_listp)), bp);
+    SET_PTR(PRED_PTR(bp), PRED(heap_listp));
+    // 새로 들어가는 노드가 프롤로그(sentinel)을 가리키도록 설정
+    SET_PTR(SUCC_PTR(bp), heap_listp);
+    SET_PTR(PRED_PTR(heap_listp), bp);
+    return bp;
 } 
 
 /* 
